@@ -371,18 +371,22 @@
   <div class="panel active" id="panel-youtube">
     <div class="status-banner" id="yt-status-banner">
       <span class="status-dot"></span>
-      YouTube Data API 실시간 수집 · 카테고리 15개 × 최근 3일 조회수 100만+ · 6시간마다 자동 갱신
+      YouTube Data API 실시간 수집 · 8개국 × 최근 3일 조회수 100만+ · 카테고리는 유튜브 공식 분류 · 6시간마다 자동 갱신
     </div>
 
     <div class="callout-box">
       <div class="callout-title">💡 왜 방식을 바꿨나요?</div>
-      <p>pixeling.io는 검색 결과를 <b>검색당 24개로 하드캡</b> 걸어놔서, 국가·기간을 아무리 쪼개도 실제 규모를 다 볼 수 없었습니다. 그래서 pixeling이 내부적으로 쓰는 것과 같은 <b>유튜브 공식 Data API</b>를 직접 호출하는 방식으로 바꿨습니다 — 로그인도, 24개 제한도 없이 카테고리 15개 각각에서 조회수 상위 영상을 가져온 뒤, 조회수 100만↑만 걸러냅니다.</p>
+      <p>pixeling.io는 검색 결과를 <b>검색당 24개로 하드캡</b> 걸어놔서, 국가·기간을 아무리 쪼개도 실제 규모를 다 볼 수 없었습니다. 그래서 pixeling이 내부적으로 쓰는 것과 같은 <b>유튜브 공식 Data API</b>를 직접 호출하는 방식으로 바꿨습니다 — 국가 8개(<code>regionCode</code> + 현지어 검색어)마다 조회수 상위 영상을 가져오고, 조회수 100만↑만 남긴 뒤, 유튜브가 각 영상에 직접 매긴 공식 카테고리(videoCategoryId)를 그대로 붙였습니다. 24개 제한도, 로그인도 없습니다.</p>
       <div class="callout-rows" id="yt-cat-summary"></div>
-      <p class="callout-foot">이 방식은 국가별 구분은 제공하지 않지만(유튜브 API가 영상의 국가를 알려주지 않음), 카테고리·구독자 구간별 필터와 6시간마다 자동 갱신은 훨씬 안정적으로 가능해졌습니다.</p>
+      <p class="callout-foot"><code>regionCode</code>는 유튜브 검색 순위에 약하게만 영향을 줘서 국가 구분이 pixeling만큼 정확하진 않을 수 있습니다 — 그래도 왼쪽에서 국가·카테고리·구독자 구간을 동시에 필터링할 수 있고, 6시간마다 자동 갱신됩니다.</p>
     </div>
 
     <div class="discover-layout">
       <aside class="discover-sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">국가<button type="button" id="yt-country-reset">전체선택</button></div>
+          <div id="yt-country-checks"></div>
+        </div>
         <div class="sidebar-section">
           <div class="sidebar-section-title">카테고리</div>
           <div class="sidebar-cat-list" id="yt-cat-list"></div>
@@ -410,7 +414,7 @@
           <div class="ip-icon tt" style="background:var(--yt)">▶</div>
           <div class="ip-title" id="yt-total-title">이번엔 어떻게 모았나요?</div>
         </div>
-        <p><b>유튜브 공식 Data API</b>를 카테고리 15개(유튜브의 공식 videoCategoryId 기준)에 대해 각각 호출해, "최근 3일 내 업로드 + 조회수순 정렬"로 상위 50개를 가져온 뒤, 그중 <b>조회수 100만 이상</b>인 것만 최대 30개씩 남겼습니다. 로그인이나 브라우저 없이 서버에서 바로 호출하는 방식이라 <b>6시간마다 자동으로 다시 수집해 이 페이지를 갱신</b>합니다. 유튜브 검색 API 특성상 완전한 전수조사는 아니고(카테고리당 검색 결과 상위 50개 중에서만 필터링), 국가 구분은 이 방식에서 제공되지 않습니다.</p>
+        <p><b>유튜브 공식 Data API</b>를 국가 8개(한국·미국·일본·프랑스·독일·영국·브라질·인도, <code>regionCode</code> + 현지어 검색어)에 대해 각각 호출해 "최근 3일 내 업로드 + 조회수순 정렬" 상위 50개를 가져온 뒤, 그중 <b>조회수 100만 이상</b>만 남겼습니다. 각 영상의 카테고리는 유튜브가 직접 매긴 공식 분류(videoCategoryId)를 그대로 사용했습니다. 로그인이나 브라우저 없이 서버에서 바로 호출하는 방식이라 <b>6시간마다 자동으로 다시 수집해 이 페이지를 갱신</b>합니다. 국가당 검색 결과 상위 50개 안에서의 필터링이라 완전한 전수조사는 아니며, <code>regionCode</code>는 유튜브 검색 순위에 약하게만 영향을 주는 신호라 국가 분류가 완벽히 정확하지는 않을 수 있습니다.</p>
         <div id="yt-fetch-meta" style="font-size:12px;color:var(--ink-faint);margin-top:10px;"></div>
       </div>
     </section>
@@ -485,7 +489,7 @@
   </div>
 
   <footer id="footer-note" class="measure">
-유튜브 탭은 <b>유튜브 공식 Data API</b>로 카테고리 15개 각각의 "최근 3일·조회수순 상위 50개"를 가져와 100만+만 남긴 자동 수집 결과이며, <b>6시간마다 자동 갱신</b>됩니다(카테고리당 검색 상위 50개 안에서의 결과라 완전한 전수조사는 아니며, 영상의 국가 정보는 제공되지 않습니다). 틱톡 탭은 실제 로그인 브라우저로 해시태그별 직접 확인한 수동 표본조사 스냅샷입니다. 카테고리 분류(대분류)는 유튜브 공식 videoCategoryId를 그대로 사용했습니다.
+유튜브 탭은 <b>유튜브 공식 Data API</b>로 국가 8개 각각의 "최근 3일·조회수순 상위 50개"를 가져와 100만+만 남긴 자동 수집 결과이며, <b>6시간마다 자동 갱신</b>됩니다(국가당 검색 상위 50개 안에서의 결과라 완전한 전수조사는 아니며, <code>regionCode</code> 기반이라 국가 분류가 완벽하지 않을 수 있습니다). 틱톡 탭은 실제 로그인 브라우저로 해시태그별 직접 확인한 수동 표본조사 스냅샷입니다. 카테고리 분류는 유튜브가 각 영상에 직접 매긴 공식 videoCategoryId를 그대로 사용했습니다.
   </footer>
 
 </div>
@@ -914,21 +918,21 @@
   buildDiscover('yt', YT_ACHIEVED);
   buildFilter('tt', TT_ACHIEVED);
 
-  // ---- YT category summary + fetch meta (auto-computed, always accurate) ----
+  // ---- YT country/category summary + fetch meta (auto-computed, always accurate) ----
   (function(){
     var wrap = document.getElementById('yt-cat-summary');
-    var byCat = {};
+    var byCountry = {};
     var order = [];
     YT_ACHIEVED.forEach(function(v){
-      if(!(v.category in byCat)){ byCat[v.category] = 0; order.push(v.category); }
-      byCat[v.category]++;
+      if(!(v.country in byCountry)){ byCountry[v.country] = {n:0, flag:v.flag}; order.push(v.country); }
+      byCountry[v.country].n++;
     });
-    order.sort(function(a,b){ return byCat[b] - byCat[a]; });
+    order.sort(function(a,b){ return byCountry[b].n - byCountry[a].n; });
     if(wrap){
       order.forEach(function(c){
         var row = document.createElement('div');
         row.className = 'callout-row';
-        row.innerHTML = '<b>'+c+'</b> — '+byCat[c]+'건';
+        row.innerHTML = '<b>'+byCountry[c].flag+' '+c+'</b> — '+byCountry[c].n+'건';
         wrap.appendChild(row);
       });
     }
@@ -936,7 +940,7 @@
     if(titleEl) titleEl.textContent = YT_ACHIEVED.length + '건, 이번엔 어떻게 모았나요?';
     var metaEl = document.getElementById('yt-fetch-meta');
     if(metaEl && typeof YT_GENERATED_AT !== 'undefined'){
-      metaEl.textContent = '마지막 수집: ' + YT_GENERATED_AT + ' (UTC) · 검색 기준일 이후 3일 · 카테고리 15개 × 조회수 상위 50 중 100만+ 필터';
+      metaEl.textContent = '마지막 수집: ' + YT_GENERATED_AT + ' (UTC) · 검색 기준일 이후 3일 · 국가 8개 × 조회수 상위 50 중 100만+ 필터 · 카테고리는 유튜브 공식 분류';
     }
   })();
 

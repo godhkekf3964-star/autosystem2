@@ -5,33 +5,35 @@ import urllib.parse
 import datetime
 import time
 import sys
-
 import os
+
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
     raise SystemExit("YOUTUBE_API_KEY env var not set")
+
 VIEW_MIN = 1000000
 DAYS_BACK = 3
-MAX_PER_CATEGORY = 30
+MAX_PER_COUNTRY = 50
 
-# maps to my existing 15-category taxonomy, using YouTube's official videoCategoryId
-CATEGORIES = [
-    ("영화/애니", 1),
-    ("자동차", 2),
-    ("음악", 10),
-    ("동물", 15),
-    ("스포츠", 17),
-    ("여행", 19),
-    ("게임", 20),
-    ("일상/로그", 22),
-    ("코미디", 23),
-    ("엔터", 24),
-    ("뉴스", 25),
-    ("스타일", 26),
-    ("교육", 27),
-    ("IT/기술", 28),
-    ("사회", 29),
+# country_label, flag, regionCode, search query term (language-appropriate)
+COUNTRIES = [
+    ("한국", "🇰🇷", "KR", "쇼츠"),
+    ("미국", "🇺🇸", "US", "shorts"),
+    ("일본", "🇯🇵", "JP", "ショート"),
+    ("프랑스", "🇫🇷", "FR", "shorts"),
+    ("독일", "🇩🇪", "DE", "shorts"),
+    ("영국", "🇬🇧", "GB", "shorts"),
+    ("브라질", "🇧🇷", "BR", "shorts"),
+    ("인도", "🇮🇳", "IN", "shorts"),
 ]
+
+# YouTube's official videoCategoryId -> my Korean taxonomy label
+CATEGORY_MAP = {
+    "1": "영화/애니", "2": "자동차", "10": "음악", "15": "동물",
+    "17": "스포츠", "19": "여행", "20": "게임", "22": "일상/로그",
+    "23": "코미디", "24": "엔터", "25": "뉴스", "26": "스타일",
+    "27": "교육", "28": "IT/기술", "29": "사회",
+}
 
 def api_get(path, params):
     params["key"] = API_KEY
@@ -40,16 +42,16 @@ def api_get(path, params):
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
-def search_category(cat_id, published_after):
+def search_country(region_code, query, published_after):
     data = api_get("search", {
         "part": "snippet",
         "type": "video",
         "videoDuration": "short",
-        "videoCategoryId": str(cat_id),
         "order": "viewCount",
         "maxResults": "50",
         "publishedAfter": published_after,
-        "q": "shorts",
+        "regionCode": region_code,
+        "q": query,
     })
     return data.get("items", [])
 
@@ -70,29 +72,28 @@ def main():
     published_after = (now - datetime.timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     result = {}
-    total_quota_search = 0
-    total_quota_videos = 0
+    quota = 0
 
-    for cat_name, cat_id in CATEGORIES:
+    for country_label, flag, region_code, query in COUNTRIES:
         try:
-            items = search_category(cat_id, published_after)
-            total_quota_search += 100
+            items = search_country(region_code, query, published_after)
+            quota += 100
         except Exception as e:
-            print("SEARCH ERROR", cat_name, e, file=sys.stderr)
-            result[cat_name] = []
+            print("SEARCH ERROR", country_label, e, file=sys.stderr)
+            result[country_label] = []
             continue
 
         video_ids = [it["id"]["videoId"] for it in items if "videoId" in it.get("id", {})]
         if not video_ids:
-            result[cat_name] = []
+            result[country_label] = []
             continue
 
         try:
             stats = get_stats(video_ids)
-            total_quota_videos += 1
+            quota += 1
         except Exception as e:
-            print("STATS ERROR", cat_name, e, file=sys.stderr)
-            result[cat_name] = []
+            print("STATS ERROR", country_label, e, file=sys.stderr)
+            result[country_label] = []
             continue
 
         rows = []
@@ -104,6 +105,8 @@ def main():
             if views < VIEW_MIN:
                 continue
             sn = st["snippet"]
+            cat_id = sn.get("categoryId", "")
+            category = CATEGORY_MAP.get(cat_id, "기타")
             rows.append({
                 "id": vid,
                 "title": sn.get("title", ""),
@@ -115,21 +118,24 @@ def main():
                 "publishedAt": sn.get("publishedAt", ""),
                 "thumb": sn.get("thumbnails", {}).get("high", sn.get("thumbnails", {}).get("medium", {})).get("url", ""),
                 "url": "https://youtube.com/shorts/" + vid,
+                "category": category,
+                "country": country_label,
+                "flag": flag,
             })
 
         rows.sort(key=lambda r: r["publishedAt"], reverse=True)
-        result[cat_name] = rows[:MAX_PER_CATEGORY]
+        result[country_label] = rows[:MAX_PER_COUNTRY]
 
         time.sleep(0.2)
 
     meta = {
         "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "published_after": published_after,
-        "quota_used_estimate": total_quota_search + total_quota_videos,
+        "quota_used_estimate": quota,
     }
 
     with open("shorts_data.json", "w", encoding="utf-8") as f:
-        json.dump({"meta": meta, "categories": result}, f, ensure_ascii=False, indent=2)
+        json.dump({"meta": meta, "countries": result}, f, ensure_ascii=False, indent=2)
 
     total_items = sum(len(v) for v in result.values())
     print("DONE. total items:", total_items, "quota est:", meta["quota_used_estimate"])

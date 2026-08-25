@@ -11,7 +11,7 @@ os.makedirs("thumbs", exist_ok=True)
 
 count = 0
 failed = 0
-for cat, items in data["categories"].items():
+for grp, items in data["countries"].items():
     for item in items:
         vid = item["id"]
         path = os.path.join("thumbs", vid + ".jpg")

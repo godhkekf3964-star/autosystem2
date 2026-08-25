@@ -12,7 +12,7 @@ with open("shorts_data.json", encoding="utf-8") as f:
     data = json.load(f)
 
 channel_ids = set()
-for cat, items in data["categories"].items():
+for grp, items in data["countries"].items():
     for item in items:
         if item.get("channelId"):
             channel_ids.add(item["channelId"])
@@ -38,7 +38,7 @@ for i in range(0, len(channel_ids), 50):
         else:
             sub_counts[item["id"]] = None
 
-for cat, items in data["categories"].items():
+for grp, items in data["countries"].items():
     for item in items:
         cid = item.get("channelId")
         item["subscribers"] = sub_counts.get(cid) if cid else None
